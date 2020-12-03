@@ -8,10 +8,10 @@ import gpiod
 
 
 class OnAirProtocol(SsdrApiProtocol):
-    def __init__(self):
+    def __init__(self, gpio):
         super().__init__()
         self.chip = gpiod.Chip('gpiochip0', gpiod.Chip.OPEN_BY_NAME)
-        self.line = self.chip.get_line(26)
+        self.line = self.chip.get_line(gpio)
         self.line.request(consumer='onaird', type=gpiod.LINE_REQ_DIR_OUT, default_vals=[0])
 
     def __del__(self):
@@ -30,13 +30,17 @@ class OnAirProtocol(SsdrApiProtocol):
 
 
 class OnAirClientFactory(ReconnectingClientFactory):
+    def __init__(self, gpio):
+        super().__init__()
+        self.gpio = gpio
+
     def startedConnecting(self, connector):
         print('Started to connect.')
 
     def buildProtocol(self, addr):
         print('Connected.')
         self.resetDelay()
-        return OnAirProtocol()
+        return OnAirProtocol(self.gpio)
 
     def clientConnectionLost(self, connector, reason):
         print('Lost connection.  Reason:', reason)
@@ -52,7 +56,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Drive the On Air sign from the radio information')
     parser.add_argument('radio_ip', help="IP address of the radio")
 
+    parser.add_argument('--gpio', type=int, help="Line number of the GPIO line", default=26)
+
     args = parser.parse_args()
 
-    reactor.connectTCP(args.radio_ip, 4992, OnAirClientFactory())
+    reactor.connectTCP(args.radio_ip, 4992, OnAirClientFactory(args.gpio))
     reactor.run()
